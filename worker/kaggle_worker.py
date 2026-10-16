@@ -46,6 +46,13 @@ save_queue(f"worker: resume stale jobs {datetime.datetime.utcnow().isoformat()[:
 pending = [j for j in queue if j["status"] == "queued"]
 print(f"pending jobs: {len(pending)}")
 
+# ftfy fix (16 Oct): the Wan tokenizer path references ftfy and the Kaggle image
+# lacks it, which killed Version 4 with "name 'ftfy' is not defined" at 12:29 UTC.
+# Install it and expose it as a builtin so any bare ftfy reference resolves.
+subprocess.run([sys.executable, "-m", "pip", "install", "-q", "ftfy"], check=True)
+import ftfy, builtins
+builtins.ftfy = ftfy
+
 from diffusers import WanImageToVideoPipeline
 from diffusers.utils import load_image, export_to_video
 from huggingface_hub import snapshot_download
