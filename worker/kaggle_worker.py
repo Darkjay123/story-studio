@@ -37,7 +37,8 @@ for j in queue:
 def save_queue(commit_msg):
     with open(JOBS, "w") as f:
         json.dump({"jobs": queue}, f, indent=2)
-    sh('git add ' + JOBS + ' && git commit -m "' + commit_msg + '"')
+    # no-op when nothing changed (fresh clone of an unchanged queue); plain commit exits 1 there
+    sh('git add ' + JOBS + ' && git diff --cached --quiet || git commit -m "' + commit_msg + '"')
     sh("git push origin main")
 
 save_queue(f"worker: resume stale jobs {datetime.datetime.utcnow().isoformat()[:19]}")
