@@ -30,7 +30,7 @@ with open(JOBS) as f:
 
 # recovery: running jobs with no saved output go back to queued (session died last run)
 for j in queue:
-    out_path = os.path.join(WORK, j.get("output", ""))
+    out_path = os.path.join(WORK, j.get("output") or "")
     if j["status"] == "running" and not (j.get("output") and os.path.exists(out_path)):
         j["status"] = "queued"
 
