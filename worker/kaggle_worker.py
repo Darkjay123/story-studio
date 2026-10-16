@@ -54,6 +54,71 @@ subprocess.run([sys.executable, "-m", "pip", "install", "-q", "ftfy"], check=Tru
 import ftfy, builtins
 builtins.ftfy = ftfy
 
+# ===== round-8 VAE diagnostics (16 Oct): V6 died mid-decode with
+# "tensor a (2) must match tensor b (4) at dim 2" inside WanResidualUpBlock's
+# avg_shortcut add. The same code passes a CPU repro, so instrument the real
+# loaded model: log the VAE config, per-chunk up-block shapes and cache-slot
+# states, and guard the add so a mismatch cannot kill the job.
+import diffusers.models.autoencoders.autoencoder_kl_wan as _wan_vae
+
+_diag = {"chunk": 0}
+
+def _slot_state(slot):
+    if slot is None:
+        return "None"
+    if isinstance(slot, str):
+        return "Rep"
+    return "T%d" % slot.shape[2]
+
+_orig_decode = _wan_vae.AutoencoderKLWan.decode
+
+def _diag_decode(self, z, return_dict=True):
+    if _diag["chunk"] == 0:
+        c = self.config
+        print("[VAE-DIAG] decode in", tuple(z.shape), flush=True)
+        print("[VAE-DIAG] cfg dim_mult=%s decoder_base_dim=%s temperal_downsample=%s "
+              "temperal_upsample=%s is_residual=%s num_res_blocks=%s" % (
+                  c.dim_mult, c.decoder_base_dim, c.temperal_downsample,
+                  self.temperal_upsample, c.is_residual, c.num_res_blocks), flush=True)
+        for bi, ub in enumerate(self.decoder.up_blocks):
+            print("[VAE-DIAG] up_block %d: %s in=%s out=%s upsampler=%s dup=%s" % (
+                bi, type(ub).__name__, ub.in_dim, ub.out_dim,
+                getattr(getattr(ub, "upsampler", None), "mode", None),
+                getattr(getattr(ub, "avg_shortcut", None), "factor", None)), flush=True)
+    _diag["chunk"] += 1
+    return _orig_decode(self, z, return_dict=return_dict)
+
+_wan_vae.AutoencoderKLWan.decode = _diag_decode
+
+_orig_upblock = _wan_vae.WanResidualUpBlock.forward
+
+def _diag_upblock(self, x, feat_cache=None, feat_idx=[0], first_chunk=False):
+    x_copy = x.clone()
+    for resnet in self.resnets:
+        x = resnet(x, feat_cache, feat_idx) if feat_cache is not None else resnet(x)
+    ups_state = None
+    if self.upsampler is not None:
+        ups_state = _slot_state(feat_cache[feat_idx[0]]) if feat_cache is not None else "nocache"
+        x = self.upsampler(x, feat_cache, feat_idx) if feat_cache is not None else self.upsampler(x)
+    if self.avg_shortcut is not None:
+        sc = self.avg_shortcut(x_copy, first_chunk=first_chunk)
+        if _diag["chunk"] <= 3:
+            print("[VAE-DIAG] upblock chunk=%d first=%s inT=%d mainT=%d scT=%d ups_slot=%s" % (
+                _diag["chunk"], first_chunk, x_copy.shape[2], x.shape[2], sc.shape[2], ups_state), flush=True)
+        if sc.shape[2] != x.shape[2]:
+            print("[VAE-GUARD] shortcut/main mismatch mainT=%d scT=%d chunk=%d ups_slot=%s "
+                  "- realigning instead of crashing" % (
+                      x.shape[2], sc.shape[2], _diag["chunk"], ups_state), flush=True)
+            if sc.shape[2] > x.shape[2] and sc.shape[2] % x.shape[2] == 0:
+                x = x.repeat_interleave(sc.shape[2] // x.shape[2], dim=2)
+            elif x.shape[2] > sc.shape[2] and x.shape[2] % sc.shape[2] == 0:
+                sc = sc.repeat_interleave(x.shape[2] // sc.shape[2], dim=2)
+        x = x + sc
+    return x
+
+_wan_vae.WanResidualUpBlock.forward = _diag_upblock
+print("[VAE-DIAG] instrumentation active", flush=True)
+
 from diffusers import WanImageToVideoPipeline
 from diffusers.utils import load_image, export_to_video
 from huggingface_hub import snapshot_download
