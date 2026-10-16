@@ -156,6 +156,9 @@ for j in pending:
             generator=torch.Generator("cuda").manual_seed(j["seed"]),
         ).frames[0]
         out_rel = f"outputs/{j['id']}.mp4"
+        # 16 Oct round-9: a fresh clone has no outputs/ (gitignored), so export_to_video
+        # died with "[Errno 2] The directory does not exist" (killed Version 7).
+        os.makedirs(os.path.dirname(out_rel), exist_ok=True)
         export_to_video(frames, out_rel, fps=j["fps"])
         j["output"] = out_rel
         j["status"] = "done"

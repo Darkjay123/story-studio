@@ -2,7 +2,7 @@
   "jobs": [
     {
       "id": "test-0001-lagos-girl",
-      "status": "failed",
+      "status": "queued",
       "model": "wan_hero",
       "keyframe": "uploads/test-lagos-girl.png",
       "prompt": "The girl steps forward away from the yellow danfo bus and walks confidently through a Lagos market street, her braids swaying, warm golden light, cinematic 2D anime animation",
@@ -15,9 +15,9 @@
       "guidance": 5.0,
       "seed": 7,
       "created": "2026-10-16T01:10+01:00",
-      "finished": "2026-10-16T16:59:24",
+      "finished": "",
       "output": "",
-      "error": "[Errno 2] The directory does not exist: '/kaggle/working/story-studio/outputs'",
+      "error": "",
       "started": ""
     }
   ]
