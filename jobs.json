@@ -1,3 +1,22 @@
 {
-  "jobs": []
+  "jobs": [
+    {
+      "id": "test-0001-lagos-girl",
+      "status": "queued",
+      "model": "wan_hero",
+      "keyframe": "uploads/test-lagos-girl.png",
+      "prompt": "The girl steps forward away from the yellow danfo bus and walks confidently through a Lagos market street, her braids swaying, warm golden light, cinematic 2D anime animation",
+      "negative": "blurry, low quality, deformed face, extra limbs, text, watermark",
+      "width": 480,
+      "height": 480,
+      "seconds": 5.0,
+      "fps": 16,
+      "steps": 30,
+      "guidance": 5.0,
+      "seed": 7,
+      "created": "2026-10-16T01:10+01:00",
+      "finished": null,
+      "output": null
+    }
+  ]
 }

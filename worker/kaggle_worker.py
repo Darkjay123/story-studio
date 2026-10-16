@@ -4,8 +4,11 @@
 
 import json, os, subprocess, sys, datetime
 
-from kaggle_secrets import UserSecretsClient
-GH_TOKEN = UserSecretsClient().get_secret("GITHUB_TOKEN")
+import os
+GH_TOKEN = os.environ.get("GH_TOKEN")
+if not GH_TOKEN:
+    from kaggle_secrets import UserSecretsClient
+    GH_TOKEN = UserSecretsClient().get_secret("GITHUB_TOKEN")
 REPO = "Darkjay123/story-studio"
 
 WORK = "/kaggle/working/story-studio"
