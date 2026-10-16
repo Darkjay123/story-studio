@@ -131,8 +131,14 @@ def get_pipe():
         # 5B TI2V image jobs must use WanImageToVideoPipeline (diffusers issue #13258);
         # WanPipeline rejects image= and crashes. Proven load recipe from the test session.
         local = snapshot_download("Wan-AI/Wan2.2-TI2V-5B-Diffusers")
-        pipe = WanImageToVideoPipeline.from_pretrained(
-            local, torch_dtype=torch.float16, device_map="balanced")
+        # 16 Oct round-11: at 720x1280 the balanced 2-GPU split OOMs on the FIRST
+        # transformer forward (GPU 1: 14.39 GiB used of 14.56, tried 1.96 GiB more;
+        # killed test-0002, Version 9). The 720p footprint no longer fits a 15 GB
+        # T4 half alongside the text encoder, so execute layer-by-layer with CPU
+        # offload instead: peak GPU memory is one block's activations, which always
+        # fits. Slower per step, but it is the standard diffusers recipe for this.
+        pipe = WanImageToVideoPipeline.from_pretrained(local, torch_dtype=torch.float16)
+        pipe.enable_sequential_cpu_offload()
         # NOTE: do NOT enable_tiling() on the Wan 2.2 patchify VAE. Its tiled
         # encode/decode path feeds raw 3-channel tiles straight into conv_in and
         # skips the patchify step (patch_size=2 -> 12 channels), which crashes with
