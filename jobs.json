@@ -22,12 +22,12 @@
     },
     {
       "id": "test-0002-lagos-market",
-      "status": "failed",
+      "status": "queued",
       "model": "wan_hero",
       "keyframe": "uploads/test-lagos-girl.png",
       "prompt": "The girl strides forward away from the yellow danfo bus, her braids swaying and her ankara dress catching the warm golden evening light. Market life flows around her: traders call out from their stalls, steam curls up from a suya grill, a hawker weaves past balancing a basin on her head. The camera glides smoothly behind her at shoulder height with shallow depth of field, dust motes drifting through the light, cinematic 2D anime animation, rich warm colors, subtle film grain.",
       "negative": "blurry, low quality, deformed face, extra limbs, text, watermark",
-      "width": 720,
+      "width": 704,
       "height": 1280,
       "seconds": 5.0,
       "fps": 24,
@@ -35,9 +35,9 @@
       "guidance": 5.0,
       "seed": 7,
       "created": "2026-10-16T18:43:48+01:00",
-      "finished": "2026-10-16T18:08:14",
+      "finished": "",
       "output": "",
-      "error": "The size of tensor a (27280) must match the size of tensor b (28520) at non-singleton dimension 1",
+      "error": "",
       "started": ""
     }
   ]
