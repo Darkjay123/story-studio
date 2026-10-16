@@ -1,7 +1,16 @@
 import os, json, base64, requests, streamlit as st
 
 REPO_API = "https://api.github.com/repos/Darkjay123/story-studio"
-TOKEN = os.environ.get("GITHUB_TOKEN", "")
+def _get_token():
+    tok = os.environ.get("GITHUB_TOKEN", "")
+    if not tok:
+        try:
+            tok = st.secrets.get("GITHUB_TOKEN", "")
+        except Exception:
+            tok = ""
+    return tok
+
+TOKEN = _get_token()
 HEADERS = {"Authorization": f"token {TOKEN}", "Accept": "application/vnd.github+json"}
 
 st.set_page_config(page_title="Story Studio", page_icon="🎬", layout="centered")
