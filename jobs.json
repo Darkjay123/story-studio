@@ -2,7 +2,7 @@
   "jobs": [
     {
       "id": "test-0001-lagos-girl",
-      "status": "queued",
+      "status": "running",
       "model": "wan_hero",
       "keyframe": "uploads/test-lagos-girl.png",
       "prompt": "The girl steps forward away from the yellow danfo bus and walks confidently through a Lagos market street, her braids swaying, warm golden light, cinematic 2D anime animation",
