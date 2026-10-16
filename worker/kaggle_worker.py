@@ -147,20 +147,55 @@ def get_pipe():
         print("I2V-LOADED")
     return pipe
 
+ltx_pipe = None
+def get_ltx_pipe():
+    global ltx_pipe
+    if ltx_pipe is None:
+        from diffusers import LTXImageToVideoPipeline
+        # LTX-Video 2B: the fast bulk-shot engine. Try 0.9.6-dev first (what the
+        # early test used); fall back to the original 2B checkpoint if that id
+        # is unavailable. fp16 because T4 has no bf16.
+        try:
+            local = snapshot_download("Lightricks/LTX-Video-0.9.6-dev")
+        except Exception:
+            local = snapshot_download("Lightricks/LTX-Video")
+        ltx_pipe = LTXImageToVideoPipeline.from_pretrained(local, torch_dtype=torch.float16)
+        ltx_pipe.enable_sequential_cpu_offload()
+        # LTX's VAE is a normal conv VAE (not Wan's patchify one), so tiling is safe
+        # here and keeps 704x1280 decode memory sane.
+        ltx_pipe.vae.enable_tiling()
+        print("LTX-LOADED", flush=True)
+    return ltx_pipe
+
 for j in pending:
     try:
         j["status"] = "running"
         save_queue(f"worker: start {j['id']}")
         img_path = os.path.join(WORK, j["keyframe"])
-        image = load_image(img_path).resize((j["width"], j["height"]))
-        # Wan needs 4n+1 frames; snap (80 -> 81). fps belongs to export_to_video, not the pipe call.
-        nf = int(j["seconds"] * j["fps"]); nf = (nf // 4) * 4 + 1
-        frames = get_pipe()(
-            prompt=j["prompt"], negative_prompt=j["negative"], image=image,
-            height=j["height"], width=j["width"], num_frames=nf,
-            guidance_scale=j["guidance"], num_inference_steps=j["steps"],
-            generator=torch.Generator("cuda").manual_seed(j["seed"]),
-        ).frames[0]
+        if j.get("engine", "wan") == "ltx":
+            # LTX wants width/height divisible by 32 and (num_frames - 1) % 8 == 0.
+            w = (int(j["width"]) // 32) * 32
+            h = (int(j["height"]) // 32) * 32
+            image = load_image(img_path).resize((w, h))
+            nf = int(j["seconds"] * j["fps"]); nf = ((nf - 1) // 8) * 8 + 1
+            frames = get_ltx_pipe()(
+                image=image, prompt=j["prompt"], negative_prompt=j["negative"],
+                height=h, width=w, num_frames=nf, frame_rate=int(j["fps"]),
+                num_inference_steps=j["steps"], guidance_scale=float(j.get("guidance", 3.0)),
+                # decode_timestep/noise_scale: the 0.9.6-dev recommended decode recipe.
+                decode_timestep=0.05, decode_noise_scale=0.025,
+                generator=torch.Generator("cuda").manual_seed(j["seed"]),
+            ).frames[0]
+        else:
+            image = load_image(img_path).resize((j["width"], j["height"]))
+            # Wan needs 4n+1 frames; snap (80 -> 81). fps belongs to export_to_video, not the pipe call.
+            nf = int(j["seconds"] * j["fps"]); nf = (nf // 4) * 4 + 1
+            frames = get_pipe()(
+                prompt=j["prompt"], negative_prompt=j["negative"], image=image,
+                height=j["height"], width=j["width"], num_frames=nf,
+                guidance_scale=j["guidance"], num_inference_steps=j["steps"],
+                generator=torch.Generator("cuda").manual_seed(j["seed"]),
+            ).frames[0]
         out_rel = f"outputs/{j['id']}.mp4"
         # 16 Oct round-9: a fresh clone has no outputs/ (gitignored), so export_to_video
         # died with "[Errno 2] The directory does not exist" (killed Version 7).
