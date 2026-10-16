@@ -45,17 +45,25 @@ save_queue(f"worker: resume stale jobs {datetime.datetime.utcnow().isoformat()[:
 pending = [j for j in queue if j["status"] == "queued"]
 print(f"pending jobs: {len(pending)}")
 
-from diffusers import WanPipeline
+from diffusers import WanImageToVideoPipeline
 from diffusers.utils import load_image, export_to_video
+from huggingface_hub import snapshot_download
 import torch
 
 pipe = None
 def get_pipe():
     global pipe
     if pipe is None:
-        pipe = WanPipeline.from_pretrained(
-            "Wan-AI/Wan2.2-TI2V-5B-Diffusers", torch_dtype=torch.float16)
-        pipe.enable_model_cpu_offload()
+        # 5B TI2V image jobs must use WanImageToVideoPipeline (diffusers issue #13258);
+        # WanPipeline rejects image= and crashes. Proven load recipe from the test session.
+        local = snapshot_download("Wan-AI/Wan2.2-TI2V-5B-Diffusers")
+        pipe = WanImageToVideoPipeline.from_pretrained(
+            local, torch_dtype=torch.float16, device_map="balanced")
+        try:
+            pipe.vae.enable_tiling()
+        except Exception as e:
+            print("vae tiling skipped:", e)
+        print("I2V-LOADED")
     return pipe
 
 for j in pending:
@@ -64,10 +72,11 @@ for j in pending:
         save_queue(f"worker: start {j['id']}")
         img_path = os.path.join(WORK, j["keyframe"])
         image = load_image(img_path).resize((j["width"], j["height"]))
+        # Wan needs 4n+1 frames; snap (80 -> 81). fps belongs to export_to_video, not the pipe call.
+        nf = int(j["seconds"] * j["fps"]); nf = (nf // 4) * 4 + 1
         frames = get_pipe()(
             prompt=j["prompt"], negative_prompt=j["negative"], image=image,
-            height=j["height"], width=j["width"],
-            num_frames=int(j["seconds"] * j["fps"]), fps=j["fps"],
+            height=j["height"], width=j["width"], num_frames=nf,
             guidance_scale=j["guidance"], num_inference_steps=j["steps"],
             generator=torch.Generator("cuda").manual_seed(j["seed"]),
         ).frames[0]
