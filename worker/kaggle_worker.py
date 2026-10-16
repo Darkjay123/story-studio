@@ -37,7 +37,7 @@ for j in queue:
 def save_queue(commit_msg):
     with open(JOBS, "w") as f:
         json.dump({"jobs": queue}, f, indent=2)
-    sh(f'git add {JOBS} && git commit -m "{commit_msg}"')
+    sh('git add ' + JOBS + ' && git commit -m "' + commit_msg + '"')
     sh("git push origin main")
 
 save_queue(f"worker: resume stale jobs {datetime.datetime.utcnow().isoformat()[:19]}")
@@ -85,7 +85,8 @@ for j in pending:
         j["output"] = out_rel
         j["status"] = "done"
         j["finished"] = datetime.datetime.utcnow().isoformat()[:19]
-        sh(f'git add "{out_rel}" && git commit -m "worker: output {j[\'id\']}"')
+        msg = "worker: output " + j["id"]
+        sh(f'git add "{out_rel}" && git commit -m "{msg}"')
         save_queue(f"worker: done {j['id']}")
         print(f"done {j['id']}")
     except Exception as e:
