@@ -22,7 +22,7 @@
     },
     {
       "id": "test-0002-lagos-market",
-      "status": "running",
+      "status": "failed",
       "model": "wan_hero",
       "keyframe": "uploads/test-lagos-girl.png",
       "prompt": "The girl strides forward away from the yellow danfo bus, her braids swaying and her ankara dress catching the warm golden evening light. Market life flows around her: traders call out from their stalls, steam curls up from a suya grill, a hawker weaves past balancing a basin on her head. The camera glides smoothly behind her at shoulder height with shallow depth of field, dust motes drifting through the light, cinematic 2D anime animation, rich warm colors, subtle film grain.",
@@ -35,9 +35,9 @@
       "guidance": 5.0,
       "seed": 7,
       "created": "2026-10-16T18:43:48+01:00",
-      "finished": "",
+      "finished": "2026-10-16T17:52:59",
       "output": "",
-      "error": "",
+      "error": "CUDA out of memory. Tried to allocate 1.96 GiB. GPU 1 has a total capacity of 14.56 GiB of which 176.81 MiB is free. Including non-PyTorch memory, this process has 14.39 GiB memory in use. Of the allocated memory 14.01 GiB is allocated by PyTorch, and 256.17 MiB is reserved by PyTorch but unallocate",
       "started": ""
     }
   ]
