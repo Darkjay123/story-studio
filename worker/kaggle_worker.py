@@ -2,6 +2,7 @@
 # One-time setup in Kaggle: Add-ons -> Secrets -> add GITHUB_TOKEN (fine-grained PAT
 # with Contents read/write on Darkjay123/story-studio).
 
+import traceback
 import json, os, subprocess, sys, datetime
 
 import os
@@ -67,10 +68,11 @@ def get_pipe():
         local = snapshot_download("Wan-AI/Wan2.2-TI2V-5B-Diffusers")
         pipe = WanImageToVideoPipeline.from_pretrained(
             local, torch_dtype=torch.float16, device_map="balanced")
-        try:
-            pipe.vae.enable_tiling()
-        except Exception as e:
-            print("vae tiling skipped:", e)
+        # NOTE: do NOT enable_tiling() on the Wan 2.2 patchify VAE. Its tiled
+        # encode/decode path feeds raw 3-channel tiles straight into conv_in and
+        # skips the patchify step (patch_size=2 -> 12 channels), which crashes with
+        # "expected input[1, 3, 3, 258, 258] to have 12 channels" (killed Version 5).
+        # The causal VAE streams frames anyway, so tiling is unnecessary at 480p.
         print("I2V-LOADED")
     return pipe
 
@@ -99,6 +101,7 @@ for j in pending:
         print(f"done {j['id']}")
     except Exception as e:
         j["status"] = "failed"
+        traceback.print_exc()
         j["error"] = str(e)[:300]
         j["finished"] = datetime.datetime.utcnow().isoformat()[:19]
         save_queue(f"worker: failed {j['id']}")
