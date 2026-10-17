@@ -165,13 +165,20 @@ def get_ltx_pipe():
     global ltx_pipe
     if ltx_pipe is None:
         from diffusers import LTXImageToVideoPipeline
-        # LTX-Video 2B: the fast bulk-shot engine. Try 0.9.6-dev first (what the
-        # early test used); fall back to the original 2B checkpoint if that id
-        # is unavailable. fp16 because T4 has no bf16.
-        try:
-            local = snapshot_download("Lightricks/LTX-Video-0.9.6-dev")
-        except Exception:
-            local = snapshot_download("Lightricks/LTX-Video")
+        # LTX-Video 2B: the fast bulk-shot engine. fp16 because T4 has no bf16.
+        # 18 Oct root-cause: V12/V13 both died ~8 min in with "Read-only file
+        # system" from the download layer. The 0.9.6-dev repo is a ~48 GB fp32
+        # class checkout (same shape as 0.9.7-dev: 30 GB transformer + 20 GB
+        # T5-XXL). snapshot_download pulls ALL of it, fills the container's
+        # overlay disk mid-download, and the FS flips read-only (the kernel
+        # teardown chmod hit the same wall). Wan works only because its repo is
+        # 34 GB and still fits. 0.9.5 is diffusers-format and 25.6 GB total
+        # (3.85 GB 2B transformer + 2.49 GB VAE + 19 GB T5 fp32), smaller than
+        # the Wan download that already succeeds, so use it and log disk headroom.
+        import shutil
+        free = shutil.disk_usage("/").free / 1e9
+        print(f"LTX-DISK free={free:.1f}GB", flush=True)
+        local = snapshot_download("Lightricks/LTX-Video-0.9.5")
         ltx_pipe = LTXImageToVideoPipeline.from_pretrained(local, torch_dtype=torch.float16)
         ltx_pipe.enable_sequential_cpu_offload()
         # LTX's VAE is a normal conv VAE (not Wan's patchify one), so tiling is safe

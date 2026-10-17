@@ -42,7 +42,7 @@
     },
     {
       "id": "test-0003-ltx-lagos-girl",
-      "status": "failed",
+      "status": "queued",
       "model": "wan_hero",
       "keyframe": "uploads/test-lagos-girl.png",
       "prompt": "The girl strides forward away from the yellow danfo bus, her braids swaying and her ankara dress catching the warm golden evening light. Market life flows around her: traders call out from their stalls, steam curls up from a suya grill, a hawker weaves past balancing a basin on her head. The camera glides smoothly behind her at shoulder height with shallow depth of field, dust motes drifting through the light, cinematic 2D anime animation, rich warm colors, subtle film grain.",
@@ -58,8 +58,8 @@
       "started": "",
       "engine": "ltx",
       "note": "LTX 2B side-by-side of the same shot as test-0002 for quality/speed comparison",
-      "error": "I/O error: IO Error: Read-only file system (os error 30)",
-      "finished": "2026-10-17T02:14:54"
+      "error": "",
+      "finished": ""
     }
   ]
 }
