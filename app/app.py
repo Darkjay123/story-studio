@@ -33,6 +33,12 @@ with st.form("submit", clear_on_submit=True):
     img = st.file_uploader("Reference keyframe (png/jpg)", type=["png", "jpg", "jpeg"])
     prompt = st.text_area("Motion prompt", height=90,
         placeholder="The girl steps forward away from the yellow danfo bus and walks confidently through a Lagos market street, her braids swaying, warm golden light, cinematic 2D anime animation")
+    engine_label = st.radio("Model",
+        ["Wan 2.2 (hero: best character fidelity, slower)",
+         "LTX-Video 2B (bulk: fast, 30fps, watch for character drift)"],
+        horizontal=True)
+    res = st.selectbox("Resolution",
+        ["480x480 (fast test)", "704x1280 (production portrait)"])
     c1, c2, c3, c4 = st.columns(4)
     seconds = c1.number_input("Seconds", 2.0, 10.0, 5.0, 0.5)
     fps = c2.selectbox("FPS", [16, 24], index=1)
@@ -52,12 +58,15 @@ if submit:
             "content": base64.b64encode(img.getvalue()).decode(),
         })
         r.raise_for_status()
-        jobs.append({"id": jid, "status": "queued", "model": "wan_hero",
+        is_ltx = engine_label.startswith("LTX")
+        width, height = (704, 1280) if "704" in res else (480, 480)
+        jobs.append({"id": jid, "status": "queued", "model": "ltx_bulk" if is_ltx else "wan_hero",
+                     "engine": "ltx" if is_ltx else "wan",
                      "keyframe": img_path, "prompt": prompt,
                      "negative": "blurry, low quality, deformed face, extra limbs, text, watermark",
-                     "width": 480, "height": 480, "seconds": float(seconds), "fps": int(fps),
-                     "steps": int(steps), "guidance": 5.0, "seed": int(seed),
-                     "created": "2026-10-16", "finished": None, "output": None})
+                     "width": width, "height": height, "seconds": float(seconds), "fps": int(fps),
+                     "steps": int(steps), "guidance": 3.0 if is_ltx else 5.0, "seed": int(seed),
+                     "created": "2026-10-17", "finished": None, "output": None})
         put_jobs(jobs, sha, f"studio: queue {jid}")
         st.success(f"Queued {jid}. The worker picks it up on its next Kaggle run.")
         st.rerun()
@@ -68,7 +77,8 @@ if not jobs:
     st.info("No jobs yet.")
 for j in reversed(jobs):
     icon = {"queued": "⏳", "running": "🎥", "done": "✅", "failed": "❌"}.get(j["status"], "?")
-    line = f"{icon} **{j['id']}** — {j['status']}"
+    tag = "LTX" if j.get("engine") == "ltx" else "Wan"
+    line = f"{icon} **{j['id']}** · {tag} — {j['status']}"
     if j.get("output"):
         line += f" · [{j['output']}](https://github.com/Darkjay123/story-studio/raw/main/{j['output']})"
     if j.get("error"):
