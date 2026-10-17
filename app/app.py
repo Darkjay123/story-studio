@@ -38,7 +38,8 @@ with st.form("submit", clear_on_submit=True):
          "LTX-Video 2B (bulk: fast, 30fps, watch for character drift)"],
         horizontal=True)
     res = st.selectbox("Resolution",
-        ["480x480 (fast test)", "704x1280 (production portrait)"])
+        ["480x480 (fast test)", "704x1280 (production portrait)",
+         "1280x704 (YouTube 16:9 long-form)"])
     c1, c2, c3, c4 = st.columns(4)
     seconds = c1.number_input("Seconds", 2.0, 10.0, 5.0, 0.5)
     fps = c2.selectbox("FPS", [16, 24], index=1)
@@ -59,7 +60,12 @@ if submit:
         })
         r.raise_for_status()
         is_ltx = engine_label.startswith("LTX")
-        width, height = (704, 1280) if "704" in res else (480, 480)
+        if "1280x704" in res:
+            width, height = (1280, 704)
+        elif "704x1280" in res:
+            width, height = (704, 1280)
+        else:
+            width, height = (480, 480)
         jobs.append({"id": jid, "status": "queued", "model": "ltx_bulk" if is_ltx else "wan_hero",
                      "engine": "ltx" if is_ltx else "wan",
                      "keyframe": img_path, "prompt": prompt,
