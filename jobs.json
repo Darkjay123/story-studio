@@ -90,7 +90,7 @@
       "height": 704,
       "fps": 24,
       "guidance": 5.0,
-      "status": "queued",
+      "status": "running",
       "keyframe": "uploads/job-0001-amara-goldenhour.png",
       "prompt": "Amara turns her head toward the camera with quiet resolve, then walks slowly down the golden-hour back street as a yellow danfo bus rumbles past behind her; her box braids sway, laundry lines flutter, warm dust haze drifts through the low sun; camera dollies in gently from her shoulder to a medium close-up; consistent character design, cinematic 2D anime animation, smooth natural motion",
       "negative": "blurry, low quality, deformed face, extra limbs, text, watermark",
