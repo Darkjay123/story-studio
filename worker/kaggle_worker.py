@@ -3,7 +3,7 @@
 # with Contents read/write on Darkjay123/story-studio).
 
 import traceback
-import json, os, subprocess, sys, datetime
+import json, os, subprocess, sys, datetime, time
 
 import os
 GH_TOKEN = os.environ.get("GH_TOKEN")
@@ -40,7 +40,20 @@ def save_queue(commit_msg):
         json.dump({"jobs": queue}, f, indent=2)
     # no-op when nothing changed (fresh clone of an unchanged queue); plain commit exits 1 there
     sh('git add ' + JOBS + ' && git diff --cached --quiet || git commit -m "' + commit_msg + '"')
-    sh("git push origin main")
+    # 17 Oct: a push racing newer commits on main used to kill the whole worker
+    # mid-loop and leave jobs.json stuck on "running" forever. Rebase onto the
+    # remote, retry, and log instead of raising so status always gets a chance to land.
+    for attempt in range(3):
+        r = subprocess.run("git pull --rebase --autostash origin main && git push origin main",
+                           shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        if r.returncode == 0:
+            return
+        print(f"PUSH-RETRY {attempt + 1}: {(r.stdout or '')[-800:]}", flush=True)
+        time.sleep(15)
+    r = subprocess.run("git pull --rebase --autostash origin main && git push origin main",
+                       shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    if r.returncode != 0:
+        print("PUSH-FAILED: " + (r.stdout or "")[-800:], file=sys.stderr, flush=True)
 
 save_queue(f"worker: resume stale jobs {datetime.datetime.utcnow().isoformat()[:19]}")
 
