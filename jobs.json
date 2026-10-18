@@ -106,9 +106,9 @@
       "id": "job-0003-amara-30s-ltx",
       "model": "ltx_bulk",
       "engine": "ltx",
-      "fps": 30,
+      "fps": 16,
       "guidance": 3.0,
-      "status": "failed",
+      "status": "queued",
       "created": "2026-10-18",
       "keyframe": "uploads/job-0001-amara-goldenhour.png",
       "width": 1280,
@@ -118,10 +118,10 @@
       "seed": 7,
       "prompt": "Golden hour on a dusty Nigerian residential street, cinematic anime style. A young Nigerian woman with long braided hair wearing a teal patterned dress stands in the middle of the road. She turns her head toward the camera, then begins walking slowly along the dusty roadside toward a yellow danfo bus parked at the curb. Dust motes drift through warm amber light, laundry sways on lines strung between buildings. Halfway through she pauses beside a corrugated fence, glances back over her shoulder once, then keeps walking. She reaches the bus door, rests her hand on it and looks up with a faint hopeful smile. Camera: one continuous slow tracking shot that follows her walk, drifting from a medium shot into a close-up on her face as she reaches the bus. Shallow depth of field, warm amber grade, consistent character.",
       "negative": "blurry, low quality, deformed face, extra limbs, text, watermark",
-      "error": "CUDA out of memory. Tried to allocate 4.55 GiB. GPU 0 has a total capacity of 14.56 GiB of which 3.52 GiB is free. Including non-PyTorch memory, this process has 11.04 GiB memory in use. Of the allocated memory 9.98 GiB is allocated by PyTorch, and 956.43 MiB is reserved by PyTorch but unallocated. ",
+      "error": "",
       "output": "",
       "started": "",
-      "finished": "2026-10-18T07:25:39"
+      "finished": ""
     },
     {
       "id": "job-0004-amara-30s-wan",
