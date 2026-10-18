@@ -106,7 +106,7 @@
       "id": "job-0003-amara-30s-ltx",
       "model": "ltx_bulk",
       "engine": "ltx",
-      "fps": 16,
+      "fps": 30,
       "guidance": 3.0,
       "status": "queued",
       "created": "2026-10-18",
