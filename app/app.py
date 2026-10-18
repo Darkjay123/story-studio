@@ -41,7 +41,7 @@ with st.form("submit", clear_on_submit=True):
         ["480x480 (fast test)", "704x1280 (production portrait)",
          "1280x704 (YouTube 16:9 long-form)"])
     c1, c2, c3, c4 = st.columns(4)
-    seconds = c1.number_input("Seconds", 2.0, 10.0, 5.0, 0.5)
+    seconds = c1.number_input("Seconds", 2.0, 30.0, 5.0, 0.5)
     fps = c2.selectbox("FPS", [16, 24], index=1)
     steps = c3.number_input("Steps", 10, 50, 30)
     seed = c4.number_input("Seed", 0, 999999, 7)
