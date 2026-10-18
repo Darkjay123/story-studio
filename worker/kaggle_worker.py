@@ -3,7 +3,7 @@
 # with Contents read/write on Darkjay123/story-studio).
 
 import traceback
-import json, os, subprocess, sys, datetime, time
+import json, os, subprocess, sys, datetime, time, math
 
 import os
 GH_TOKEN = os.environ.get("GH_TOKEN")
@@ -197,25 +197,63 @@ for j in pending:
             w = (int(j["width"]) // 32) * 32
             h = (int(j["height"]) // 32) * 32
             image = load_image(img_path).resize((w, h))
-            nf = int(j["seconds"] * j["fps"]); nf = ((nf - 1) // 8) * 8 + 1
-            frames = get_ltx_pipe()(
-                image=image, prompt=j["prompt"], negative_prompt=j["negative"],
-                height=h, width=w, num_frames=nf, frame_rate=int(j["fps"]),
-                num_inference_steps=j["steps"], guidance_scale=float(j.get("guidance", 3.0)),
-                # decode_timestep/noise_scale: the 0.9.6-dev recommended decode recipe.
-                decode_timestep=0.05, decode_noise_scale=0.025,
-                generator=torch.Generator("cuda").manual_seed(j["seed"]),
-            ).frames[0]
+            # 18 Oct: a 30s @ 30fps job (897 frames) OOM'd on T4 (tried 4.55 GiB, 3.52
+            # free) because LTX denoises every frame in one pass. Long jobs now render
+            # in <=8s segments (241 frames, the size already proven to fit) and each
+            # later segment is conditioned on the previous segment's last frame, so
+            # motion carries across the seam; its duplicated first frame is dropped.
+            fps_j = int(j["fps"])
+            total = float(j["seconds"])
+            if total <= 8.0:
+                segs = [total]
+            else:
+                n = int(math.ceil(total / 8.0 - 1e-6))
+                segs = [total / n] * n
+            parts = []
+            cond = image
+            for si, seg in enumerate(segs):
+                nf = int(seg * fps_j); nf = ((nf - 1) // 8) * 8 + 1
+                print(f"ltx segment {si + 1}/{len(segs)} frames={nf}", flush=True)
+                out = get_ltx_pipe()(
+                    image=cond, prompt=j["prompt"], negative_prompt=j["negative"],
+                    height=h, width=w, num_frames=nf, frame_rate=fps_j,
+                    num_inference_steps=j["steps"], guidance_scale=float(j.get("guidance", 3.0)),
+                    # decode_timestep/noise_scale: the 0.9.6-dev recommended decode recipe.
+                    decode_timestep=0.05, decode_noise_scale=0.025,
+                    generator=torch.Generator("cuda").manual_seed(j["seed"]),
+                ).frames[0]
+                parts.append(out if si == 0 else out[1:])
+                if si + 1 < len(segs):
+                    cond = out[-1]
+                    torch.cuda.empty_cache()
+            frames = parts[0] if len(parts) == 1 else torch.cat(parts, dim=0)
         else:
             image = load_image(img_path).resize((j["width"], j["height"]))
             # Wan needs 4n+1 frames; snap (80 -> 81). fps belongs to export_to_video, not the pipe call.
-            nf = int(j["seconds"] * j["fps"]); nf = (nf // 4) * 4 + 1
-            frames = get_pipe()(
-                prompt=j["prompt"], negative_prompt=j["negative"], image=image,
-                height=j["height"], width=j["width"], num_frames=nf,
-                guidance_scale=j["guidance"], num_inference_steps=j["steps"],
-                generator=torch.Generator("cuda").manual_seed(j["seed"]),
-            ).frames[0]
+            # 18 Oct: same segmenting as the LTX fix. A 30s @ 24fps job is 721 frames in
+            # one pass, a known OOM risk on T4 x2; 8s segments (193 frames) already fit.
+            total = float(j["seconds"])
+            if total <= 8.0:
+                segs = [total]
+            else:
+                n = int(math.ceil(total / 8.0 - 1e-6))
+                segs = [total / n] * n
+            parts = []
+            cond = image
+            for si, seg in enumerate(segs):
+                nf = int(seg * j["fps"]); nf = (nf // 4) * 4 + 1
+                print(f"wan segment {si + 1}/{len(segs)} frames={nf}", flush=True)
+                out = get_pipe()(
+                    prompt=j["prompt"], negative_prompt=j["negative"], image=cond,
+                    height=j["height"], width=j["width"], num_frames=nf,
+                    guidance_scale=j["guidance"], num_inference_steps=j["steps"],
+                    generator=torch.Generator("cuda").manual_seed(j["seed"]),
+                ).frames[0]
+                parts.append(out if si == 0 else out[1:])
+                if si + 1 < len(segs):
+                    cond = out[-1]
+                    torch.cuda.empty_cache()
+            frames = parts[0] if len(parts) == 1 else torch.cat(parts, dim=0)
         out_rel = f"outputs/{j['id']}.mp4"
         # 16 Oct round-9: a fresh clone has no outputs/ (gitignored), so export_to_video
         # died with "[Errno 2] The directory does not exist" (killed Version 7).
