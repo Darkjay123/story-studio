@@ -226,7 +226,17 @@ for j in pending:
                 if si + 1 < len(segs):
                     cond = out[-1]
                     torch.cuda.empty_cache()
-            frames = parts[0] if len(parts) == 1 else torch.cat(parts, dim=0)
+            # 19 Oct fix: diffusers may return a segment as a list of PIL images
+            # instead of a tensor (LTX 0.9.5 did), so torch.cat died with
+            # "expected Tensor as element 0 in argument 0, but got list" after
+            # every segment had already rendered. Lists concatenate as lists;
+            # tensors keep torch.cat.
+            if len(parts) == 1:
+                frames = parts[0]
+            elif isinstance(parts[0], (list, tuple)):
+                frames = [f for part in parts for f in part]
+            else:
+                frames = torch.cat(parts, dim=0)
         else:
             image = load_image(img_path).resize((j["width"], j["height"]))
             # Wan needs 4n+1 frames; snap (80 -> 81). fps belongs to export_to_video, not the pipe call.
@@ -253,7 +263,17 @@ for j in pending:
                 if si + 1 < len(segs):
                     cond = out[-1]
                     torch.cuda.empty_cache()
-            frames = parts[0] if len(parts) == 1 else torch.cat(parts, dim=0)
+            # 19 Oct fix: diffusers may return a segment as a list of PIL images
+            # instead of a tensor (LTX 0.9.5 did), so torch.cat died with
+            # "expected Tensor as element 0 in argument 0, but got list" after
+            # every segment had already rendered. Lists concatenate as lists;
+            # tensors keep torch.cat.
+            if len(parts) == 1:
+                frames = parts[0]
+            elif isinstance(parts[0], (list, tuple)):
+                frames = [f for part in parts for f in part]
+            else:
+                frames = torch.cat(parts, dim=0)
         out_rel = f"outputs/{j['id']}.mp4"
         # 16 Oct round-9: a fresh clone has no outputs/ (gitignored), so export_to_video
         # died with "[Errno 2] The directory does not exist" (killed Version 7).
