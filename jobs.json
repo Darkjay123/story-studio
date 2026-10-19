@@ -127,7 +127,7 @@
       "engine": "wan",
       "fps": 24,
       "guidance": 5.0,
-      "status": "queued",
+      "status": "running",
       "created": "2026-10-18",
       "keyframe": "uploads/job-0001-amara-goldenhour.png",
       "width": 1280,
