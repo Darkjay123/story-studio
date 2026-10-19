@@ -248,11 +248,24 @@ for j in pending:
                     elif isinstance(_last, Image.Image):
                         cond = _last.copy()
                     else:
-                        # Wan frames come back as numpy arrays, but the pipeline's
-                        # `image` only accepts a torch.Tensor or PIL.Image (Version 20
-                        # died here: "`image` has to be of type `torch.Tensor` or
-                        # `PIL.Image.Image` but is <class 'numpy.ndarray'>").
-                        cond = Image.fromarray(_last)
+                        # Wan frames come back as float32 numpy (H, W, 3) in [0, 1];
+                        # the pipeline's `image` only accepts a torch.Tensor or
+                        # PIL.Image (Version 20 died on the raw numpy, Version 21 on
+                        # PIL refusing float32: "Cannot handle this data type:
+                        # (1, 1, 3), <f4"). Scale to an 8-bit frame for PIL.
+                        import numpy as _np_mod
+                        _f = _np_mod.asarray(_last).astype(_np_mod.float32)
+                        if _f.ndim == 4:
+                            _f = _f[0]
+                        if _f.ndim == 3 and _f.shape[0] in (1, 3) and _f.shape[-1] not in (1, 3, 4):
+                            _f = _f.transpose(1, 2, 0)
+                        if _f.ndim == 2:
+                            _f = _np_mod.stack([_f] * 3, axis=-1)
+                        if _f.shape[-1] == 4:
+                            _f = _f[..., :3]
+                        if float(_f.max()) <= 1.001:
+                            _f = _f * 255.0
+                        cond = Image.fromarray(_f.clip(0, 255).round().astype(_np_mod.uint8))
                 # 19 Oct fix #2: Version 19 ran out of system RAM near the end of
                 # the Wan 30s render: every segment's frames stayed resident in
                 # `parts` (~0.9 GB each as float tensors) and the final torch.cat
@@ -297,11 +310,24 @@ for j in pending:
                     elif isinstance(_last, Image.Image):
                         cond = _last.copy()
                     else:
-                        # Wan frames come back as numpy arrays, but the pipeline's
-                        # `image` only accepts a torch.Tensor or PIL.Image (Version 20
-                        # died here: "`image` has to be of type `torch.Tensor` or
-                        # `PIL.Image.Image` but is <class 'numpy.ndarray'>").
-                        cond = Image.fromarray(_last)
+                        # Wan frames come back as float32 numpy (H, W, 3) in [0, 1];
+                        # the pipeline's `image` only accepts a torch.Tensor or
+                        # PIL.Image (Version 20 died on the raw numpy, Version 21 on
+                        # PIL refusing float32: "Cannot handle this data type:
+                        # (1, 1, 3), <f4"). Scale to an 8-bit frame for PIL.
+                        import numpy as _np_mod
+                        _f = _np_mod.asarray(_last).astype(_np_mod.float32)
+                        if _f.ndim == 4:
+                            _f = _f[0]
+                        if _f.ndim == 3 and _f.shape[0] in (1, 3) and _f.shape[-1] not in (1, 3, 4):
+                            _f = _f.transpose(1, 2, 0)
+                        if _f.ndim == 2:
+                            _f = _np_mod.stack([_f] * 3, axis=-1)
+                        if _f.shape[-1] == 4:
+                            _f = _f[..., :3]
+                        if float(_f.max()) <= 1.001:
+                            _f = _f * 255.0
+                        cond = Image.fromarray(_f.clip(0, 255).round().astype(_np_mod.uint8))
                 # 19 Oct fix #2: same per-segment export as the LTX branch; this is
                 # what OOM'd Version 19 near the end of this exact job.
                 seg_rel = f"outputs/{j['id']}.seg{si}.mp4"
