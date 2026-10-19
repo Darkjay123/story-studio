@@ -223,7 +223,8 @@ for j in pending:
             else:
                 n = int(math.ceil(total / 8.0 - 1e-6))
                 segs = [total / n] * n
-            parts = []
+            import gc
+            seg_files = []
             cond = image
             for si, seg in enumerate(segs):
                 nf = int(seg * fps_j); nf = ((nf - 1) // 8) * 8 + 1
@@ -236,21 +237,23 @@ for j in pending:
                     decode_timestep=0.05, decode_noise_scale=0.025,
                     generator=torch.Generator("cuda").manual_seed(j["seed"]),
                 ).frames[0]
-                parts.append(out if si == 0 else out[1:])
                 if si + 1 < len(segs):
-                    cond = out[-1]
-                    torch.cuda.empty_cache()
-            # 19 Oct fix: diffusers may return a segment as a list of PIL images
-            # instead of a tensor (LTX 0.9.5 did), so torch.cat died with
-            # "expected Tensor as element 0 in argument 0, but got list" after
-            # every segment had already rendered. Lists concatenate as lists;
-            # tensors keep torch.cat.
-            if len(parts) == 1:
-                frames = parts[0]
-            elif isinstance(parts[0], (list, tuple)):
-                frames = [f for part in parts for f in part]
-            else:
-                frames = torch.cat(parts, dim=0)
+                    # .clone()/.copy(): keep only the one conditioning frame; a bare
+                    # out[-1] is a view that pins the whole segment tensor in RAM.
+                    cond = out[-1].clone() if torch.is_tensor(out) else out[-1].copy()
+                # 19 Oct fix #2: Version 19 ran out of system RAM near the end of
+                # the Wan 30s render: every segment's frames stayed resident in
+                # `parts` (~0.9 GB each as float tensors) and the final torch.cat
+                # doubled the peak. Export each segment to its own mp4 the moment
+                # it renders and free its frames; the full video is stitched with
+                # ffmpeg after the loop, so RAM holds one segment at a time.
+                seg_rel = f"outputs/{j['id']}.seg{si}.mp4"
+                export_to_video(out if si == 0 else out[1:], seg_rel, fps=fps_j)
+                del out
+                gc.collect()
+                torch.cuda.empty_cache()
+                seg_files.append(seg_rel)
+
         else:
             image = load_image(img_path).resize((j["width"], j["height"]))
             # Wan needs 4n+1 frames; snap (80 -> 81). fps belongs to export_to_video, not the pipe call.
@@ -262,7 +265,8 @@ for j in pending:
             else:
                 n = int(math.ceil(total / 8.0 - 1e-6))
                 segs = [total / n] * n
-            parts = []
+            import gc
+            seg_files = []
             cond = image
             for si, seg in enumerate(segs):
                 nf = int(seg * j["fps"]); nf = (nf // 4) * 4 + 1
@@ -273,26 +277,33 @@ for j in pending:
                     guidance_scale=j["guidance"], num_inference_steps=j["steps"],
                     generator=torch.Generator("cuda").manual_seed(j["seed"]),
                 ).frames[0]
-                parts.append(out if si == 0 else out[1:])
                 if si + 1 < len(segs):
-                    cond = out[-1]
-                    torch.cuda.empty_cache()
-            # 19 Oct fix: diffusers may return a segment as a list of PIL images
-            # instead of a tensor (LTX 0.9.5 did), so torch.cat died with
-            # "expected Tensor as element 0 in argument 0, but got list" after
-            # every segment had already rendered. Lists concatenate as lists;
-            # tensors keep torch.cat.
-            if len(parts) == 1:
-                frames = parts[0]
-            elif isinstance(parts[0], (list, tuple)):
-                frames = [f for part in parts for f in part]
-            else:
-                frames = torch.cat(parts, dim=0)
+                    # .clone()/.copy(): keep only the one conditioning frame (see LTX branch).
+                    cond = out[-1].clone() if torch.is_tensor(out) else out[-1].copy()
+                # 19 Oct fix #2: same per-segment export as the LTX branch; this is
+                # what OOM'd Version 19 near the end of this exact job.
+                seg_rel = f"outputs/{j['id']}.seg{si}.mp4"
+                export_to_video(out if si == 0 else out[1:], seg_rel, fps=int(j["fps"]))
+                del out
+                gc.collect()
+                torch.cuda.empty_cache()
+                seg_files.append(seg_rel)
+
         out_rel = f"outputs/{j['id']}.mp4"
         # 16 Oct round-9: a fresh clone has no outputs/ (gitignored), so export_to_video
         # died with "[Errno 2] The directory does not exist" (killed Version 7).
         os.makedirs(os.path.dirname(out_rel), exist_ok=True)
-        export_to_video(frames, out_rel, fps=j["fps"])
+        # 19 Oct fix #2: segments were already exported inside the loop; stitch
+        # them (stream copy, same codec/size) instead of holding every frame.
+        if len(seg_files) == 1:
+            os.replace(seg_files[0], out_rel)
+        else:
+            with open("concat.txt", "w") as fh:
+                for sf in seg_files:
+                    fh.write(f"file '{sf}'\n")
+            sh(f'ffmpeg -y -f concat -safe 0 -i concat.txt -c copy "{out_rel}"')
+            for sf in seg_files:
+                os.remove(sf)
         j["output"] = out_rel
         j["status"] = "done"
         j["finished"] = datetime.datetime.utcnow().isoformat()[:19]
