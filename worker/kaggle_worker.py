@@ -189,6 +189,39 @@ def get_ltx_pipe():
         print("LTX-LOADED", flush=True)
     return ltx_pipe
 
+def host_mem_gb():
+    # 19 Oct: Version 22 died 3h55m into the Wan 30s render with Kaggle's host
+    # OOM banner ("tried to allocate more memory than is available"), mid-render
+    # even with per-segment export in place: host RAM still creeps across
+    # segments. Log it around every segment so the next failure carries its own
+    # evidence, and rebuild the pipeline when headroom drops below RAM_RELOAD_GB
+    # so each segment starts from a clean memory baseline.
+    try:
+        with open("/proc/meminfo") as _fh:
+            for _line in _fh:
+                if _line.startswith("MemAvailable:"):
+                    return int(_line.split()[1]) / (1024 * 1024)
+    except Exception:
+        pass
+    return -1.0
+
+
+def trim_host_ram():
+    # gc + empty_cache free the objects; glibc keeps the pages. malloc_trim
+    # hands them back to the OS so the next segment starts from a clean base.
+    import gc
+    gc.collect()
+    torch.cuda.empty_cache()
+    try:
+        import ctypes
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:
+        pass
+
+
+RAM_RELOAD_GB = 8.0
+
+
 def drop_pipes():
     # 19 Oct: Version 18 died ~6 min into the first Wan job after a full LTX run,
     # with Kaggle's host OOM banner ("tried to allocate more memory than is
@@ -229,6 +262,13 @@ for j in pending:
             seg_files = []
             cond = image
             for si, seg in enumerate(segs):
+                if si > 0:
+                    _avail = host_mem_gb()
+                    print(f"[RAM] {j['id']} before segment {si + 1}: {_avail:.1f}GB available", flush=True)
+                    if 0 < _avail < RAM_RELOAD_GB:
+                        print(f"[RAM] low headroom before segment {si + 1}; rebuilding pipeline", flush=True)
+                        drop_pipes()
+                        trim_host_ram()
                 nf = int(seg * fps_j); nf = ((nf - 1) // 8) * 8 + 1
                 print(f"ltx segment {si + 1}/{len(segs)} frames={nf}", flush=True)
                 out = get_ltx_pipe()(
@@ -275,8 +315,9 @@ for j in pending:
                 seg_rel = f"outputs/{j['id']}.seg{si}.mp4"
                 export_to_video(out if si == 0 else out[1:], seg_rel, fps=fps_j)
                 del out
-                gc.collect()
-                torch.cuda.empty_cache()
+                trim_host_ram()
+                _avail = host_mem_gb()
+                print(f"[RAM] {j['id']} after segment {si + 1}: {_avail:.1f}GB available", flush=True)
                 seg_files.append(seg_rel)
 
         else:
@@ -294,6 +335,13 @@ for j in pending:
             seg_files = []
             cond = image
             for si, seg in enumerate(segs):
+                if si > 0:
+                    _avail = host_mem_gb()
+                    print(f"[RAM] {j['id']} before segment {si + 1}: {_avail:.1f}GB available", flush=True)
+                    if 0 < _avail < RAM_RELOAD_GB:
+                        print(f"[RAM] low headroom before segment {si + 1}; rebuilding pipeline", flush=True)
+                        drop_pipes()
+                        trim_host_ram()
                 nf = int(seg * j["fps"]); nf = (nf // 4) * 4 + 1
                 print(f"wan segment {si + 1}/{len(segs)} frames={nf}", flush=True)
                 out = get_pipe()(
@@ -333,8 +381,9 @@ for j in pending:
                 seg_rel = f"outputs/{j['id']}.seg{si}.mp4"
                 export_to_video(out if si == 0 else out[1:], seg_rel, fps=int(j["fps"]))
                 del out
-                gc.collect()
-                torch.cuda.empty_cache()
+                trim_host_ram()
+                _avail = host_mem_gb()
+                print(f"[RAM] {j['id']} after segment {si + 1}: {_avail:.1f}GB available", flush=True)
                 seg_files.append(seg_rel)
 
         out_rel = f"outputs/{j['id']}.mp4"
