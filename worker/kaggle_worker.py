@@ -5,6 +5,8 @@
 import traceback
 import json, os, subprocess, sys, datetime, time, math
 
+from PIL import Image
+
 import os
 GH_TOKEN = os.environ.get("GH_TOKEN")
 if not GH_TOKEN:
@@ -240,7 +242,17 @@ for j in pending:
                 if si + 1 < len(segs):
                     # .clone()/.copy(): keep only the one conditioning frame; a bare
                     # out[-1] is a view that pins the whole segment tensor in RAM.
-                    cond = out[-1].clone() if torch.is_tensor(out) else out[-1].copy()
+                    _last = out[-1]
+                    if torch.is_tensor(_last):
+                        cond = _last.clone()
+                    elif isinstance(_last, Image.Image):
+                        cond = _last.copy()
+                    else:
+                        # Wan frames come back as numpy arrays, but the pipeline's
+                        # `image` only accepts a torch.Tensor or PIL.Image (Version 20
+                        # died here: "`image` has to be of type `torch.Tensor` or
+                        # `PIL.Image.Image` but is <class 'numpy.ndarray'>").
+                        cond = Image.fromarray(_last)
                 # 19 Oct fix #2: Version 19 ran out of system RAM near the end of
                 # the Wan 30s render: every segment's frames stayed resident in
                 # `parts` (~0.9 GB each as float tensors) and the final torch.cat
@@ -279,7 +291,17 @@ for j in pending:
                 ).frames[0]
                 if si + 1 < len(segs):
                     # .clone()/.copy(): keep only the one conditioning frame (see LTX branch).
-                    cond = out[-1].clone() if torch.is_tensor(out) else out[-1].copy()
+                    _last = out[-1]
+                    if torch.is_tensor(_last):
+                        cond = _last.clone()
+                    elif isinstance(_last, Image.Image):
+                        cond = _last.copy()
+                    else:
+                        # Wan frames come back as numpy arrays, but the pipeline's
+                        # `image` only accepts a torch.Tensor or PIL.Image (Version 20
+                        # died here: "`image` has to be of type `torch.Tensor` or
+                        # `PIL.Image.Image` but is <class 'numpy.ndarray'>").
+                        cond = Image.fromarray(_last)
                 # 19 Oct fix #2: same per-segment export as the LTX branch; this is
                 # what OOM'd Version 19 near the end of this exact job.
                 seg_rel = f"outputs/{j['id']}.seg{si}.mp4"
