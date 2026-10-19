@@ -187,6 +187,20 @@ def get_ltx_pipe():
         print("LTX-LOADED", flush=True)
     return ltx_pipe
 
+def drop_pipes():
+    # 19 Oct: Version 18 died ~6 min into the first Wan job after a full LTX run,
+    # with Kaggle's host OOM banner ("tried to allocate more memory than is
+    # available"). Both engines' pipelines are cached in globals, so after LTX
+    # finished, the Wan load stacked on top of a still-resident LTX pipeline and
+    # exhausted system RAM. Free everything between jobs; models reload from the
+    # local snapshot cache in a few minutes.
+    import gc
+    global pipe, ltx_pipe
+    pipe = None
+    ltx_pipe = None
+    gc.collect()
+    torch.cuda.empty_cache()
+
 for j in pending:
     try:
         j["status"] = "running"
@@ -286,6 +300,7 @@ for j in pending:
         sh(f'git add "{out_rel}" && git commit -m "{msg}"')
         save_queue(f"worker: done {j['id']}")
         print(f"done {j['id']}")
+        drop_pipes()
     except Exception as e:
         j["status"] = "failed"
         traceback.print_exc()
@@ -293,5 +308,6 @@ for j in pending:
         j["finished"] = datetime.datetime.utcnow().isoformat()[:19]
         save_queue(f"worker: failed {j['id']}")
         print(f"FAILED {j['id']}: {e}", file=sys.stderr)
+        drop_pipes()
 
 print("worker run complete")
