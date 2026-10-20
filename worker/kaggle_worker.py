@@ -326,10 +326,17 @@ for j in pending:
             # 18 Oct: same segmenting as the LTX fix. A 30s @ 24fps job is 721 frames in
             # one pass, a known OOM risk on T4 x2; 8s segments (193 frames) already fit.
             total = float(j["seconds"])
-            if total <= 8.0:
+            # 20 Oct: Version 23 died mid-VAE-decode of Wan segment 2 with
+            # Kaggle's host OOM banner, 5h26m in, even after the low-headroom
+            # pipeline rebuild ran. [RAM] showed only 3.1GB free after segment
+            # 1: the 181-frame decode output (~2GB on CPU) stacked on the
+            # offloaded weights leaves no margin. Cut long Wan jobs to 4s
+            # segments (97 frames, ~1GB decode output) so the decode peak
+            # halves.
+            if total <= 4.0:
                 segs = [total]
             else:
-                n = int(math.ceil(total / 8.0 - 1e-6))
+                n = int(math.ceil(total / 4.0 - 1e-6))
                 segs = [total / n] * n
             import gc
             seg_files = []
@@ -338,10 +345,14 @@ for j in pending:
                 if si > 0:
                     _avail = host_mem_gb()
                     print(f"[RAM] {j['id']} before segment {si + 1}: {_avail:.1f}GB available", flush=True)
-                    if 0 < _avail < RAM_RELOAD_GB:
-                        print(f"[RAM] low headroom before segment {si + 1}; rebuilding pipeline", flush=True)
-                        drop_pipes()
-                        trim_host_ram()
+                    # 20 Oct: unconditional teardown at every Wan segment
+                    # boundary. The low-headroom-only rebuild did not stop
+                    # Version 23's host OOM mid-decode in segment 2, so every
+                    # segment now starts from a clean baseline.
+                    drop_pipes()
+                    trim_host_ram()
+                    _post = host_mem_gb()
+                    print(f"[RAM] {j['id']} after teardown before segment {si + 1}: {_post:.1f}GB available", flush=True)
                 nf = int(seg * j["fps"]); nf = (nf // 4) * 4 + 1
                 print(f"wan segment {si + 1}/{len(segs)} frames={nf}", flush=True)
                 out = get_pipe()(
