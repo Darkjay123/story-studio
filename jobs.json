@@ -127,7 +127,7 @@
       "engine": "wan",
       "fps": 24,
       "guidance": 5.0,
-      "status": "running",
+      "status": "done",
       "created": "2026-10-18",
       "keyframe": "uploads/job-0001-amara-goldenhour.png",
       "width": 1280,
@@ -136,7 +136,9 @@
       "steps": 30,
       "seed": 7,
       "prompt": "Golden hour on a dusty Nigerian residential street, cinematic anime style. A young Nigerian woman with long braided hair wearing a teal patterned dress stands in the middle of the road. She turns her head toward the camera, then begins walking slowly along the dusty roadside toward a yellow danfo bus parked at the curb. Dust motes drift through warm amber light, laundry sways on lines strung between buildings. Halfway through she pauses beside a corrugated fence, glances back over her shoulder once, then keeps walking. She reaches the bus door, rests her hand on it and looks up with a faint hopeful smile. Camera: one continuous slow tracking shot that follows her walk, drifting from a medium shot into a close-up on her face as she reaches the bus. Shallow depth of field, warm amber grade, consistent character.",
-      "negative": "blurry, low quality, deformed face, extra limbs, text, watermark"
+      "negative": "blurry, low quality, deformed face, extra limbs, text, watermark",
+      "output": "outputs/job-0004-amara-30s-wan.mp4",
+      "finished": "2026-10-20T21:54:33"
     }
   ]
 }
